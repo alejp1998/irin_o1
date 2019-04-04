@@ -18,6 +18,17 @@ public:
     ~CIri1Controller();
     void SimulationStep(unsigned n_step_number, double f_time, double f_step_interval);
 
+    void CalcPositionAndOrientation ( double *f_encoder );
+    int  GoGoal                     ( double f_x, double f_y, double *prox);
+    void TurnLeft                   ( double f_custom_speed );
+    void TurnRight                  ( double f_custom_speed );
+    void TurnAngle                  ( double f_custom_speed_left, double f_custom_speed_right  );
+    void GoForwards                 ( double f_custom_speed );
+    void GoBackwards                ( double f_custom_speed );
+    void Stop                       ( void );
+
+    void    PathPlanning            ( void );
+    string  pathFind                ( const int &xStart, const int &yStart, const int &xFinish, const int &yFinish );
 private:
     CEpuck* m_pcEpuck;
 
@@ -46,6 +57,14 @@ private:
 		double 		m_fTime;
     double    fBattToForageInhibitor;
     double    fAvoidToBattInhibitor;
+    int       m_nState;
+    bool starEnd;
+
+    dVector2 *m_vPositionsPlanning;
+    int m_nPathPlanningStops;
+
+    int m_nRobotActualGridX;
+    int m_nRobotActualGridY;
 		/* Functions */
 
 		void ExecuteBehaviors ( void );
