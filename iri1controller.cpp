@@ -297,9 +297,27 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 			printf("%1.3f ", battery[i]);
 		}
 		printf("\n");
+
+    if(battery[0]>0.95){
+      /*Initialize A-Star variables*/
+    	m_nState=0;
+      m_nPathPlanningStops=0;
+      //robotStartGridX = m_vPosition.x/(mapLengthX/mapGridX);
+      //robotStartGridY = m_vPosition.y/(mapLengthY/mapGridY);
+      robotStartGridX = (m_pcEpuck->GetPosition()).x;///(mapLengthX/mapGridX);
+      robotStartGridY = (m_pcEpuck->GetPosition()).y;///(mapLengthX/mapGridX);
+      printf("\n");
+      printf("GridX: %2f", robotStartGridX);
+      printf("  GridY: %2f", robotStartGridY);
+      printf("\n");
+
+      starEnd = false;
+      PathPlanning();
+    }
 	}
 
-
+  printf("Orientacion: %2f", m_fOrientation);
+  printf("\n");
 	if (m_nWriteToFile )
 	{
 	/* INIT: WRITE TO FILES */
