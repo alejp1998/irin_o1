@@ -162,8 +162,6 @@ bool operator < ( const node & a, const node & b )
 
 /* Threshold to avoid obstacles */
 #define PROXIMITY_THRESHOLD 0.4
-/* Threshold to define the battery discharged */
-#define BATTERY_THRESHOLD 0.2
 /* Threshold to reduce the speed of the robot */
 #define NAVIGATE_LIGHT_THRESHOLD 0.9
 
@@ -211,9 +209,12 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	fBattToForageInhibitor = 1.0;
 	fAvoidToBattInhibitor = 1.0;
 
+	/* Threshold to define the battery discharged */
+	battery_threshold = 0.2;
+
 	/*Initialize A-Star variables*/
 	m_nState=0;
-  m_nPathPlanningStops=0;
+  	m_nPathPlanningStops=0;
 
 	/*Calc Route*/
   PathPlanning();
@@ -252,6 +253,8 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	double* encoder = m_seEncoder->GetSensorReading(m_pcEpuck);
 	/* Leer Compass */
 	double* compass = m_seCompass->GetSensorReading(m_pcEpuck);
+	/* Leer Sensores de Suelo Memory */
+	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
 
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
@@ -265,22 +268,23 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
   }
   printf("\n");
   /* Fin: Incluir las ACCIONES/CONTROLADOR a implementar */
-
-  /* Remake Kinematic Equations */
-  CalcPositionAndOrientation(encoder);
-  /* DEBUG */
-  printf("REAL: %2f,%2f,%2f  -- ODOM: %2f,%2f,%2f -- ENC: %2f,%2f \n", (m_pcEpuck->GetPosition()).x, (m_pcEpuck->GetPosition()).y, compass[0], m_vPosition.x,m_vPosition.y,m_fOrientation,encoder[0], encoder[1]);
-  printf("State: %d\n", m_nState);
-  /* DEBUG */
-
+  
   /* Finete States Machine */
-  if (m_nState >= m_nPathPlanningStops){
-    Stop();
+  	if (starEnd==false){
+  		/* DEBUG */
+  		/* Remake Kinematic Equations */
+  		CalcPositionAndOrientation(encoder);
+  		printf("REAL: %2f,%2f,%2f  -- ODOM: %2f,%2f,%2f -- ENC: %2f,%2f \n", (m_pcEpuck->GetPosition()).x, (m_pcEpuck->GetPosition()).y, compass[0], m_vPosition.x,m_vPosition.y,m_fOrientation,encoder[0], encoder[1]);
+  		printf("State: %d\n", m_nState);
+  	}
+  	if (m_nState >= m_nPathPlanningStops){
+    	Stop();
 		starEnd = true;
 	}
-  else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
-    m_nState++;
+  	else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
+    	m_nState++;
 	}
+
 	/*Cuando termine el camino del Algoritmo A-Star*/
 	if(starEnd){
 		/* Execute the levels of competence */
@@ -291,6 +295,7 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		double* battery = m_seBattery->GetSensorReading(m_pcEpuck);
 		/* Set Speed to wheels */
 		m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);
+		
 		printf("BATTERY: ");
 		for ( int i = 0 ; i < m_seBattery->GetNumberOfInputs() ; i ++ )
 		{
@@ -298,22 +303,31 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		}
 		printf("\n");
 
-    if(battery[0]>0.95){
-      /*Initialize A-Star variables*/
-    	m_nState=0;
-      m_nPathPlanningStops=0;
-      //robotStartGridX = m_vPosition.x/(mapLengthX/mapGridX);
-      //robotStartGridY = m_vPosition.y/(mapLengthY/mapGridY);
-      robotStartGridX = (m_pcEpuck->GetPosition()).x;///(mapLengthX/mapGridX);
-      robotStartGridY = (m_pcEpuck->GetPosition()).y;///(mapLengthX/mapGridX);
-      printf("\n");
-      printf("GridX: %2f", robotStartGridX);
-      printf("  GridY: %2f", robotStartGridY);
-      printf("\n");
-
-      starEnd = false;
-      PathPlanning();
-    }
+		if(groundMemory[0]==0.0 && battery[0]>0.5){
+			/* Set Speed to wheels */
+			m_acWheels->SetSpeed(0,0);
+			if(battery[0]>0.95){
+	      		/*Initialize A-Star variables*/
+	    		m_nState=0;
+	      		m_nPathPlanningStops=0;
+	      		robotStartGridX = 17;
+	      		robotStartGridY = 17;
+	      		/* Erase Obstacle Map */
+  				for ( int y = 0 ; y < m ; y++ )
+  				{
+    				for ( int x = 0 ; x < n ; x++ )
+    				{
+        				map[x][y]=0;
+    				}
+  				}
+  				/*Restart Calc Position*/
+  				m_vPosition.x = 0.0;
+  				m_vPosition.y = 0.0;
+  				m_fOrientation = 0.0;
+	      		starEnd = false;
+	      		PathPlanning();
+	    	}
+		}
 	}
 
   printf("Orientacion: %2f", m_fOrientation);
@@ -535,8 +549,18 @@ void CIri1Controller::GoLoad ( unsigned int un_priority )
   m_fActivationTable[un_priority][1] = fMaxLight;
 
 	/* If battery below a BATTERY_THRESHOLD */
-	if ( battery[0] < BATTERY_THRESHOLD && fAvoidToBattInhibitor==1.0)
+	if ( battery[0] < battery_threshold && fAvoidToBattInhibitor==1.0)
 	{
+		printf("fMaxLight: ");
+		printf("%1.3f ", fMaxLight);
+		printf("\n");
+		if(fMaxLight > 0.5){
+			battery_threshold = 0.95;
+		}
+		else{
+			battery_threshold = 0.2;
+		}
+
     /* Inibit Forage */
 		fBattToForageInhibitor = 0.0;
 		/* Set Leds to RED */

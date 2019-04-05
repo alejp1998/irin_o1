@@ -59,6 +59,7 @@ private:
     double    fAvoidToBattInhibitor;
     int       m_nState;
     bool starEnd;
+    double battery_threshold;
 
     dVector2 *m_vPositionsPlanning;
     int m_nPathPlanningStops;
