@@ -75,7 +75,7 @@ private:
 		void Navigate ( unsigned int un_priority );
 		void GoLoad ( unsigned int un_priority );
 		void Forage ( unsigned int un_priority );
-    void Go4Walle ( unsigned int un_priority );
+        void Go4Walle ( unsigned int un_priority );
 
 };
 

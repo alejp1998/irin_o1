@@ -49,7 +49,7 @@ char* mapDraw =
 "%###%##############%"
 "%###%#####%%%%#####%"
 "%###%########%#####%"
-"%###%########%%%%##%"
+"%###%########%%%%%%%"
 "%###%%%%%%#########%"
 "%########%#########%"
 "%########%#########%"
@@ -67,10 +67,10 @@ const int mapGridX          = 20;
 const int mapGridY          = 20;
 double    mapLengthX        = 3.0;
 double    mapLengthY        = 3.0;
-double    robotStartGridX   = 16;
+double    robotStartGridX   = 3;
 double    robotStartGridY   = 16;
-double    robotEndGridX     = 4;
-double    robotEndGridY     = 4;
+double    robotEndGridX     = 5;
+double    robotEndGridY     = 5;
 bool starEnd = false;
 
 const   int n=mapGridX; // horizontal size of the map
@@ -255,6 +255,15 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	double* compass = m_seCompass->GetSensorReading(m_pcEpuck);
 	/* Leer Sensores de Suelo Memory */
 	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
+	/* Leer Sensores de Luz */
+	double* light =m_seLight->GetSensorReading(m_pcEpuck);
+	double totalLight = 0;
+	for(int i = 0; i<8; i++){
+		totalLight += light[i];
+	}
+	printf("TOTAL LIGHT: ");
+	printf("%1.3f ", totalLight);
+	printf("\n");
 
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
@@ -285,7 +294,7 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
     	m_nState++;
 	}
 
-	/*Cuando termine el camino del Algoritmo A-Star*/
+	/*Cuando termine el caminoprintf("%1.3f ", bprintf("%1.3f ", battery[i]);attery[i]); del Algoritmo A-Star*/
 	if(starEnd){
 		/* Execute the levels of competence */
 		ExecuteBehaviors();
@@ -303,34 +312,37 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		}
 		printf("\n");
 
-		if(groundMemory[0]==0.0 && battery[0]>0.5){
+		if(((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0) && battery[0]>0.25)||(battery[0]>0.9)){
 			/* Set Speed to wheels */
-			m_acWheels->SetSpeed(0,0);
-			if(battery[0]>0.95){
+			m_acWheels->SetSpeed(5,-5);
+			if(battery[0]>0.9 &&(compass[0]>M_PI-0.001 && compass[0]<M_PI+0.001)){
 	      		/*Initialize A-Star variables*/
 	    		m_nState=0;
 	      		m_nPathPlanningStops=0;
-	      		robotStartGridX = 17;
-	      		robotStartGridY = 17;
-	      		/* Erase Obstacle Map */
+	      		/*Posicion donde hallamos situado la luz*/
+	      		robotStartGridX = 16;
+	      		robotStartGridY = 16;
+	      		/* Restart Obstacle Map */
   				for ( int y = 0 ; y < m ; y++ )
   				{
     				for ( int x = 0 ; x < n ; x++ )
     				{
         				map[x][y]=0;
+        				dir_map[x][y]=0;
+        				open_nodes_map[x][y]=0;
+        				closed_nodes_map[x][y]=0;
     				}
   				}
   				/*Restart Calc Position*/
   				m_vPosition.x = 0.0;
   				m_vPosition.y = 0.0;
   				m_fOrientation = 0.0;
-	      		starEnd = false;
 	      		PathPlanning();
+	      		starEnd = false;
+	      		m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
 	    	}
 		}
 	}
-
-  printf("Orientacion: %2f", m_fOrientation);
   printf("\n");
 	if (m_nWriteToFile )
 	{
@@ -782,7 +794,7 @@ int CIri1Controller::GoGoal (double f_x, double f_y, double *prox)
 
   //printf("GOAL: %2f, REPELENT: %2f, ORIEN: %2f\n", fGoalDirection, fRepelent, m_fOrientation);
   /* If obstacle, wight repelent and goal directions */
-  if (fMaxProx >= 0.7)
+  if (fMaxProx >= 0.75)
     fGoalDirection = (0.5*fGoalDirection+0.5*fRepelent);
 
   /*Calc Error direction */
