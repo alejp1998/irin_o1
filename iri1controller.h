@@ -33,7 +33,7 @@ private:
     CEpuck* m_pcEpuck;
 
 		CWheelsActuator* m_acWheels;
-    CEpuckProximitySensor* m_seProx;
+        CEpuckProximitySensor* m_seProx;
 		CRealLightSensor* m_seLight;
 		CRealBlueLightSensor* m_seBlueLight;
 		CRealRedLightSensor* m_seRedLight;
@@ -50,15 +50,16 @@ private:
     dVector2 m_vPosition;
 
     /* Global Variables */
-		double 		m_fLeftSpeed;
-		double 		m_fRightSpeed;
-		double**	m_fActivationTable;
-		int 			m_nWriteToFile;
-		double 		m_fTime;
+	double 		m_fLeftSpeed;
+	double 		m_fRightSpeed;
+	double**	m_fActivationTable;
+	int 			m_nWriteToFile;
+	double 		m_fTime;
     double    fBattToForageInhibitor;
     double    fAvoidToBattInhibitor;
     int       m_nState;
     bool starEnd;
+    int camino;
     double battery_threshold;
     double blueMem;
 
@@ -71,12 +72,14 @@ private:
 
 		void ExecuteBehaviors ( void );
 		void Coordinator ( void );
+        void BuildMap ( double totalLight, double totalBlueLight, double totalRedLight );
 
 		void ObstacleAvoidance ( unsigned int un_priority );
 		void Navigate ( unsigned int un_priority );
 		void GoLoad ( unsigned int un_priority );
 		void Forage ( unsigned int un_priority );
         void Go4Walle ( unsigned int un_priority );
+
 
 };
 

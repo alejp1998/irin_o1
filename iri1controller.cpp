@@ -41,37 +41,21 @@ extern long int rngSeed;
 using namespace std;
 
 /*A-STAR VARIABLES*/
-char* mapDraw =
-"%%%%%%%%%%%%%%%%%%%%"
-"%###%##############%"
-"%###%##############%"
-"%###%##############%"
-"%###%##############%"
-"%###%#####%%%%#####%"
-"%###%########%#####%"
-"%###%########%%%%%%%"
-"%###%%%%%%#########%"
-"%########%#########%"
-"%########%#########%"
-"%######%%%%%%%#####%"
-"%###########%%#####%"
-"%###########%%#####%"
-"%############%#####%"
-"%#######%####%#####%"
-"%#######%####%#####%"
-"%#######%##########%"
-"%#######%##########%"
-"%%%%%%%%%%%%%%%%%%%%";
-
 const int mapGridX          = 20;
 const int mapGridY          = 20;
 double    mapLengthX        = 3.0;
 double    mapLengthY        = 3.0;
-double    robotStartGridX   = 4;
-double    robotStartGridY   = 16;
-double    robotEndGridX     = 5;
-double    robotEndGridY     = 5;
+double    robotStartGridX   = 0;
+double    robotStartGridY   = 0;
+double    robotEndGridX     = 0;
+double    robotEndGridY     = 0;
 bool starEnd = true;
+int camino = 0;
+
+double    houseGridX,houseGridY = 0.0;
+double    walleGridX,walleGridY = 0.0;
+double    discoGridX,discoGridY = 0.0;
+double    maxBlueLight,maxRedLight = 0.0;
 
 const   int n=mapGridX; // horizontal size of the map
 const   int m=mapGridY; // vertical size size of the map
@@ -199,7 +183,7 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	m_seRedBattery = (CRedBatterySensor*) m_pcEpuck->GetSensor (SENSOR_RED_BATTERY);
 	/* Set encoder Sensor */
 	m_seEncoder = (CEncoderSensor*) m_pcEpuck->GetSensor (SENSOR_ENCODER);
-  m_seEncoder->InitEncoderSensor(m_pcEpuck);
+    m_seEncoder->InitEncoderSensor(m_pcEpuck);
 	/* Set compass Sensor */
 	m_seCompass = (CCompassSensor*) m_pcEpuck->GetSensor (SENSOR_COMPASS);
 
@@ -212,13 +196,14 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	/* Threshold to define the battery discharged */
 	battery_threshold = 0.2;
 
-	// /*Initialize A-Star variables*/
-	// m_nState=0;
- //  	m_nPathPlanningStops=0;
- //  	blueMem = 0.0;
-
-	// /*Calc Route*/
- //  PathPlanning();
+	/*Initialize A-Star variables*/
+	for ( int y = 0 ; y < m ; y++ )
+  		{
+    	for ( int x = 0 ; x < n ; x++ )
+    	{
+        	map[x][y]=1;
+        }
+    }
 
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -257,12 +242,15 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	/* Leer Sensores de Luz */
 	double* light =m_seLight->GetSensorReading(m_pcEpuck);
 	double* blueLight =m_seBlueLight->GetSensorReading(m_pcEpuck);
+	double* redLight =m_seRedLight->GetSensorReading(m_pcEpuck);
 
 	double totalLight = 0.0;
 	double totalBlueLight = 0.0;
+	double totalRedLight = 0.0;
 	for(int i = 0; i<8; i++){
 		totalLight += light[i];
 		totalBlueLight += blueLight[i];
+		totalRedLight += redLight[i];
 	}
 	if(totalBlueLight!=0.0)
 		blueMem = totalBlueLight;
@@ -287,6 +275,34 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
   }
   printf("\n");
   /* Fin: Incluir las ACCIONES/CONTROLADOR a implementar */
+
+  if(camino==0 && m_nState >= m_nPathPlanningStops){
+    	if((compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01)==false){
+    		m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
+			/* Set Speed to wheels */
+			m_acWheels->SetSpeed(25,-25);
+    	}
+   		else{
+   			camino = 1;
+   			robotStartGridX = walleGridX;
+   			robotStartGridY = walleGridY;
+    		robotEndGridX = discoGridX;
+    		robotEndGridY = discoGridY;
+    		/*Initialize A-Star variables*/
+	    	m_nState=0;
+	     	m_nPathPlanningStops=0;
+	      	/* Restart Obstacle Map */
+  			m_vPosition.x = 0.0;
+  			m_vPosition.y = 0.0;
+  			m_fOrientation = 0.0;
+
+	      	PathPlanning();
+    	}
+   }
+   else if(camino==1 && m_nState >= m_nPathPlanningStops){
+    	camino = 0;
+		starEnd = true;
+	}
   
   /* Finete States Machine */
   	if (starEnd==false){
@@ -298,18 +314,29 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
   	}
   	if (m_nState >= m_nPathPlanningStops){
     	Stop();
-		starEnd = true;
+
+    	for ( int y = 0 ; y < m ; y++ )
+  		{
+    		for ( int x = 0 ; x < n ; x++ )
+    		{
+   				if(map[x][y]>1){
+   					map[x][y]=0;
+   				}
+       		}
+   		}
 	}
   	else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
     	m_nState++;
 	}
 
-	/*Cuando termine el caminoprintf("%1.3f ", bprintf("%1.3f ", battery[i]);attery[i]); del Algoritmo A-Star*/
+	/*Cuando termine el camino del Algoritmo A-Star*/
 	if(starEnd){
 		/* Execute the levels of competence */
 		ExecuteBehaviors();
 		/* Execute Coordinator */
 		Coordinator();
+		/*Construir el mapa*/
+		BuildMap(totalLight,totalBlueLight,totalRedLight);
 
 		double* battery = m_seBattery->GetSensorReading(m_pcEpuck);
 		/* Set Speed to wheels */
@@ -331,29 +358,21 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 			/* Set Speed to wheels */
 			m_acWheels->SetSpeed(25,-25);
 			if(battery[0]>0.9 &&(compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01)){
+				robotStartGridX = houseGridX;
+    			robotStartGridY = houseGridY;
+    			robotEndGridX = walleGridX;
+    			robotEndGridY = walleGridY;	
+
 				/*Encedemos la luz al despertarnos*/
 				m_seLight->SwitchNearestLight(1);
 	      		/*Initialize A-Star variables*/
 	    		m_nState=0;
 	      		m_nPathPlanningStops=0;
-	      		/*Posicion donde hallamos situado la luz*/
-	      		robotStartGridX = 16;
-	      		robotStartGridY = 16;
 	      		/* Restart Obstacle Map */
-  				for ( int y = 0 ; y < m ; y++ )
-  				{
-    				for ( int x = 0 ; x < n ; x++ )
-    				{
-        				map[x][y]=0;
-        				dir_map[x][y]=0;
-        				open_nodes_map[x][y]=0;
-        				closed_nodes_map[x][y]=0;
-    				}
-  				}
-  				/*Restart Calc Position*/
   				m_vPosition.x = 0.0;
   				m_vPosition.y = 0.0;
   				m_fOrientation = 0.0;
+
 	      		PathPlanning();
 	      		starEnd = false;
 	      		m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
@@ -390,8 +409,9 @@ void CIri1Controller::ExecuteBehaviors ( void )
 
 	/* Release Inhibitors */
 	fBattToForageInhibitor = 1.0;
+	fAvoidToBattInhibitor = 1.0;
 	/* Set Leds to BLACK */
-	m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLACK);
+	m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
 
 	ObstacleAvoidance ( AVOID_PRIORITY );
 	GoLoad ( RELOAD_PRIORITY );
@@ -488,7 +508,6 @@ void CIri1Controller::ObstacleAvoidance ( unsigned int un_priority )
 
   m_fActivationTable[un_priority][0] = fRepelent;
   m_fActivationTable[un_priority][1] = fMaxProx;
-	fAvoidToBattInhibitor = 1.0;
 
 
 	/* If above a threshold */
@@ -613,7 +632,61 @@ void CIri1Controller::GoLoad ( unsigned int un_priority )
 
 /******************************************************************************/
 /******************************************************************************/
+void CIri1Controller::BuildMap (double totalLight, double totalBlueLight, double totalRedLight)
+{
+	/* Leer Sensores de Suelo Memory */
+	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
 
+	/*Obtenemos posicion actual exacta del robot*/
+	dVector2 actualPos;
+	actualPos.x = (m_pcEpuck->GetPosition()).x;
+	actualPos.y = (m_pcEpuck->GetPosition()).y;
+
+	/*Sumamos 1.5 a los valores para situar el origen arriba a la izquierda*/
+	actualPos.x += mapLengthX/2;
+	actualPos.y = -actualPos.y + mapLengthY/2;
+
+	/*Calculamos casilla de la cuadrícula actual*/
+	int actualGridX, actualGridY;
+	actualGridX = (int) floor(actualPos.x/(mapLengthX/mapGridX));
+	actualGridY = (int) floor(actualPos.y/(mapLengthY/mapGridY));
+
+	/*Sustituimos dicha posicion por un no obstaculo en el mapa*/
+	map[actualGridX][actualGridY]=0;
+
+	/*Update Home, Walle and Disco Grid*/
+	if(groundMemory[0]==1 && totalRedLight>maxRedLight){
+		maxRedLight = totalRedLight;
+		walleGridX = actualGridX;
+		walleGridY = actualGridY;
+	}
+	if(totalBlueLight>maxBlueLight){
+		maxBlueLight = totalBlueLight;
+		discoGridX = actualGridX;
+		discoGridY = actualGridY;
+	}
+	if(totalLight==0.0){
+		houseGridX = actualGridX;
+		houseGridY = actualGridY;
+	}
+
+	printf("CalculatedGrids: House( %2.0f , %2.0f ); Walle( %2.0f , %2.0f ); Disco( %2.0f , %2.0f );  \n",houseGridX,houseGridY,walleGridX,walleGridY,discoGridX,discoGridY);
+	
+	/*Display Updated Map*/
+    for ( int y = 0 ; y < m ; y++ )
+    {
+      for ( int x = 0 ; x < n ; x++ )
+        if ( map[x][y] == 0 )
+          cout<<".";
+        else
+          cout<<"O"; //obstacle
+  		cout<<endl;
+    }
+
+}
+
+/******************************************************************************/
+/******************************************************************************/
 void CIri1Controller::Go4Walle ( unsigned int un_priority )
 {
 	/* Leer Sensores de Suelo Memory */
@@ -885,16 +958,6 @@ void CIri1Controller::Stop( void )
 
 void CIri1Controller::PathPlanning ( void )
 {
-  /* Create Obstacle Map */
-  for ( int y = 0 ; y < m ; y++ )
-  {
-    for ( int x = 0 ; x < n ; x++ )
-    {
-      if (mapDraw[y*m+x] == '%' )
-        map[x][m-y-1]=1;
-    }
-  }
-
   /* Obtain start and end desired position */
   int xA=robotStartGridX;
   int yA=robotStartGridY;
