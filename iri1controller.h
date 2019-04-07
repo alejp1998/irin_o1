@@ -60,6 +60,7 @@ private:
     int       m_nState;
     bool starEnd;
     double battery_threshold;
+    double blueMem;
 
     dVector2 *m_vPositionsPlanning;
     int m_nPathPlanningStops;

@@ -67,7 +67,7 @@ const int mapGridX          = 20;
 const int mapGridY          = 20;
 double    mapLengthX        = 3.0;
 double    mapLengthY        = 3.0;
-double    robotStartGridX   = 3;
+double    robotStartGridX   = 4;
 double    robotStartGridY   = 16;
 double    robotEndGridX     = 5;
 double    robotEndGridY     = 5;
@@ -215,6 +215,7 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	/*Initialize A-Star variables*/
 	m_nState=0;
   	m_nPathPlanningStops=0;
+  	blueMem = 0.0;
 
 	/*Calc Route*/
   PathPlanning();
@@ -253,16 +254,25 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	double* encoder = m_seEncoder->GetSensorReading(m_pcEpuck);
 	/* Leer Compass */
 	double* compass = m_seCompass->GetSensorReading(m_pcEpuck);
-	/* Leer Sensores de Suelo Memory */
-	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
 	/* Leer Sensores de Luz */
 	double* light =m_seLight->GetSensorReading(m_pcEpuck);
-	double totalLight = 0;
+	double* blueLight =m_seBlueLight->GetSensorReading(m_pcEpuck);
+
+	double totalLight = 0.0;
+	double totalBlueLight = 0.0;
 	for(int i = 0; i<8; i++){
 		totalLight += light[i];
+		totalBlueLight += blueLight[i];
 	}
+	if(totalBlueLight!=0.0)
+		blueMem = totalBlueLight;
+
 	printf("TOTAL LIGHT: ");
 	printf("%1.3f ", totalLight);
+	printf("\n");
+
+	printf("TOTAL BLUE LIGHT: ");
+	printf("%1.3f ", blueMem);
 	printf("\n");
 
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
@@ -312,10 +322,17 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		}
 		printf("\n");
 
-		if(((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0) && battery[0]>0.25)||(battery[0]>0.9)){
+		if((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0 && (2.5*blueMem<totalLight && totalBlueLight!=0.0))||(totalLight==0.0)){
+			/*Apagamos la luz al irnos a dormir*/
+			m_seLight->SwitchNearestLight(0);
+			/*Y recuperamos energia poco a poco*/
+			m_seBattery->DrunkSleep(m_pcEpuck);
+			m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
 			/* Set Speed to wheels */
 			m_acWheels->SetSpeed(5,-5);
-			if(battery[0]>0.9 &&(compass[0]>M_PI-0.001 && compass[0]<M_PI+0.001)){
+			if(battery[0]>0.9 &&(compass[0]>M_PI-0.005 && compass[0]<M_PI+0.005)){
+				/*Encedemos la luz al despertarnos*/
+				m_seLight->SwitchNearestLight(1);
 	      		/*Initialize A-Star variables*/
 	    		m_nState=0;
 	      		m_nPathPlanningStops=0;

@@ -41,9 +41,9 @@ double* CBatterySensor::ComputeSensorReadings(CEpuck* pc_epuck, CSimulator* pc_s
 	/* If there is lights charge battery */
 	if ( pcArena->GetNearestLight(vPosition, m_fRange , &vLightPosition, &fDistance) )
 	{
-			m_fBatteryLevel += m_fChargeCoef * ( 1 - pow ( m_fBatteryLevel , 2 ));
+			//m_fBatteryLevel += m_fChargeCoef * ( 1 - pow ( m_fBatteryLevel , 2 ));
 	}
-  else if( pcArena->GetNearestBlueLight(vPosition, m_fRange , &vLightPosition, &fDistance))
+  	else if( pcArena->GetNearestBlueLight(vPosition, m_fRange , &vLightPosition, &fDistance))
 	{
 			m_fBatteryLevel -= m_fDischargeCoef *3;
 	}
@@ -65,6 +65,13 @@ double* CBatterySensor::ComputeSensorReadings(CEpuck* pc_epuck, CSimulator* pc_s
 
 double* CBatterySensor::GetSensorReading( CEpuck *p_pcEpuck){
 	return GetInputs();
+}
+
+/******************************************************************************/
+/******************************************************************************/
+
+double* CBatterySensor::DrunkSleep( CEpuck *p_pcEpuck){
+	m_fBatteryLevel += m_fChargeCoef;
 }
 
 /******************************************************************************/
