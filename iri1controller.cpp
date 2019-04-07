@@ -71,7 +71,7 @@ double    robotStartGridX   = 4;
 double    robotStartGridY   = 16;
 double    robotEndGridX     = 5;
 double    robotEndGridY     = 5;
-bool starEnd = false;
+bool starEnd = true;
 
 const   int n=mapGridX; // horizontal size of the map
 const   int m=mapGridY; // vertical size size of the map
@@ -212,13 +212,13 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 	/* Threshold to define the battery discharged */
 	battery_threshold = 0.2;
 
-	/*Initialize A-Star variables*/
-	m_nState=0;
-  	m_nPathPlanningStops=0;
-  	blueMem = 0.0;
+	// /*Initialize A-Star variables*/
+	// m_nState=0;
+ //  	m_nPathPlanningStops=0;
+ //  	blueMem = 0.0;
 
-	/*Calc Route*/
-  PathPlanning();
+	// /*Calc Route*/
+ //  PathPlanning();
 
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -322,15 +322,15 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		}
 		printf("\n");
 
-		if((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0 && (2.5*blueMem<totalLight && totalBlueLight!=0.0))||(totalLight==0.0)){
+		if((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0 && (2.5*blueMem<totalLight))||(totalLight==0.0)){
 			/*Apagamos la luz al irnos a dormir*/
 			m_seLight->SwitchNearestLight(0);
 			/*Y recuperamos energia poco a poco*/
 			m_seBattery->DrunkSleep(m_pcEpuck);
 			m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
 			/* Set Speed to wheels */
-			m_acWheels->SetSpeed(5,-5);
-			if(battery[0]>0.9 &&(compass[0]>M_PI-0.005 && compass[0]<M_PI+0.005)){
+			m_acWheels->SetSpeed(25,-25);
+			if(battery[0]>0.9 &&(compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01)){
 				/*Encedemos la luz al despertarnos*/
 				m_seLight->SwitchNearestLight(1);
 	      		/*Initialize A-Star variables*/
