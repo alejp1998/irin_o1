@@ -327,7 +327,7 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 	/*Cuando termine el camino del Algoritmo A-Star adopta comportamiento subsuncion*/
 	if(starEnd){
 		/* Execute the levels of competence */
-		ExecuteBehaviors();BATTERY: 
+		ExecuteBehaviors();
 		/* Execute Coordinator */
 		Coordinator();
 		/*Construir el mapa*/
@@ -365,6 +365,17 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 	      		m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
 	    	}
 		}
+	}
+
+	if (m_nWriteToFile )
+	{
+		/* INIT: WRITE TO FILES */
+		/* Write coordinator ouputs */
+		FILE* fileSensorLuzOutput = fopen("outputFiles/sensorLuzOutput", "a");
+		fprintf(fileSensorLuzOutput,"%2.4f %2.4f %2.4f %2.4f\n", m_fTime, totalLight, totalBlueLight, totalRedLight);
+		fclose(fileSensorLuzOutput);
+		/* END WRITE TO FILES */
+		
 	}
 }
 
@@ -442,6 +453,18 @@ void CIri1Controller::Coordinator ( void )
 		fprintf(fileOutput,"%2.4f %d %2.4f %2.4f \n", m_fTime, nBehavior, m_fLeftSpeed, m_fRightSpeed);
 		fclose(fileOutput);
 		/* END WRITE TO FILES */
+
+		/* Write coordinator ouputs */
+		FILE* fileBehaviorOutput = fopen("outputFiles/behaviorOutput", "a");
+		fprintf(fileBehaviorOutput,"%2.4f ", m_fTime);
+		for(int i=0; i < BEHAVIORS; i++){
+			fprintf(fileBehaviorOutput, "%d %2.4f ", i, m_fActivationTable[i][2]);
+		}
+		fprintf(fileBehaviorOutput, "\n");
+		fclose(fileBehaviorOutput);
+		/* END WRITE TO FILES */
+
+		
 	}
 }
 
@@ -694,16 +717,15 @@ void CIri1Controller::Go4Walle ( unsigned int un_priority )
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
   m_fActivationTable[un_priority][0] = fRepelent;
-  m_fActivationTable[un_priority][1] = 1 - fMaxLight;
+  m_fActivationTable[un_priority][1] = fMaxLight;
 
-  /* If with a virtual puck */
-	if ( ( abs(groundMemory[0]-1) * fBattToForageInhibitor * fAvoidToBattInhibitor) == 1.0 )
+  /* If without a virtual puck */
+	if ( ( abs(groundMemory[0]-1) * fBattToForageInhibitor * fAvoidToBattInhibitor) == 1.0)
 	{
-		/* Set Leds to BLUE */
-		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLACK);
-    /* Mark Behavior as active */
-    m_fActivationTable[un_priority][2] = 1.0;
-
+		/* Set Leds to Black */
+		m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
+    	/* Mark Behavior as active */
+    	m_fActivationTable[un_priority][2] = 1.0;
 	}
 	if (m_nWriteToFile )
 	{
@@ -753,10 +775,10 @@ void CIri1Controller::Forage ( unsigned int un_priority )
 	while ( fRepelent < -M_PI ) fRepelent += 2 * M_PI;
 
   m_fActivationTable[un_priority][0] = fRepelent;
-  m_fActivationTable[un_priority][1] = 1 - fMaxLight;
+  m_fActivationTable[un_priority][1] = fMaxLight;
 
   /* If with a virtual puck */
-	if ( ( groundMemory[0] * fBattToForageInhibitor * fAvoidToBattInhibitor) == 1.0 )
+	if ( ( groundMemory[0] * fBattToForageInhibitor * fAvoidToBattInhibitor) == 1.0)
 	{
 		/* Set Leds to BLUE */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_BLUE);
