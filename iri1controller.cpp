@@ -50,9 +50,9 @@ double    robotStartGridY   = 0;
 double    robotEndGridX     = 0;
 double    robotEndGridY     = 0;
 
-double    houseGridX,houseGridY = 1000.0;
-double    walleGridX,walleGridY = 1000.0;
-double    discoGridX,discoGridY = 1000.0;
+double    houseGridX,houseGridY = 0.0;
+double    walleGridX,walleGridY = 0.0;
+double    discoGridX,discoGridY = 0.0;
 double    maxBlueLight,maxRedLight = 0.0;
 int actualGridX, actualGridY;
 
@@ -235,6 +235,7 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	/* Leer Sensores de Proximidad */
 	double* prox = m_seProx->GetSensorReading(m_pcEpuck);
 	double* ground = m_seGround->GetSensorReading(m_pcEpuck);
+	double* battery = m_seBattery->GetSensorReading(m_pcEpuck);
 	/* Leer Encoder */
 	double* encoder = m_seEncoder->GetSensorReading(m_pcEpuck);
 	/* Leer Compass */
@@ -244,9 +245,35 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	double* blueLight =m_seBlueLight->GetSensorReading(m_pcEpuck);
 	double* redLight =m_seRedLight->GetSensorReading(m_pcEpuck);
 
-	double totalLight = 0.0;
-	double totalBlueLight = 0.0;
-	double totalRedLight = 0.0;
+	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
+	m_fTime = f_time;
+
+	/*FASE 2 : HYBRID BEHAVIORS MANAGING*/
+	HybridManager ( encoder, compass, light, blueLight, redLight , prox, battery );
+
+	/*Print results*/
+  	printf("\n");
+	if (m_nWriteToFile )
+	{
+	/* INIT: WRITE TO FILES */
+	/* Write robot position and orientation */
+		FILE* filePosition = fopen("outputFiles/robotPosition", "a");
+		fprintf(filePosition,"%2.4f %2.4f %2.4f %2.4f\n", m_fTime, m_pcEpuck->GetPosition().x, m_pcEpuck->GetPosition().y, m_pcEpuck->GetRotation());
+		fclose(filePosition);
+
+		/* Write robot wheels speed */
+		FILE* fileWheels = fopen("outputFiles/robotWheels", "a");
+		fprintf(fileWheels,"%2.4f %2.4f %2.4f \n", m_fTime, m_fLeftSpeed, m_fRightSpeed);
+		fclose(fileWheels);
+		/* END WRITE TO FILES */
+	}
+
+}
+/******************************************************************************/
+/******************************************************************************/
+
+void CIri1Controller::HybridManager ( double* encoder, double* compass, double* light, double* blueLight, double* redLight , double* prox , double* battery){
+	double totalLight, totalBlueLight, totalRedLight = 0.0;
 	for(int i = 0; i<8; i++){
 		totalLight += light[i];
 		totalBlueLight += blueLight[i];
@@ -255,18 +282,7 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	if(totalBlueLight!=0.0)
 		blueMem = totalBlueLight;
 
-	printf("TOTAL LIGHT: ");
-	printf("%1.3f ", totalLight);
-	printf("\n");
-
-	printf("TOTAL BLUE LIGHT: ");
-	printf("%1.3f ", blueMem);
-	printf("\n");
-
-	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
-	m_fTime = f_time;
-
-	/*HYBRID BEHAVIORS MANAGING*/
+	printf("TOTAL LIGHT: Yellow: %1.3f , Blue: %1.3f , Red: %1.3f \nBATTERY: %1.3f \n", totalLight, blueMem , totalRedLight , battery[0]);
 
 	/*Mientras este usando el algoritmmo estrella*/
   	if (!starEnd){
@@ -308,25 +324,17 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 		}
 	}
 
-	/*Cuando termine el camino del Algoritmo A-Star*/
+	/*Cuando termine el camino del Algoritmo A-Star adopta comportamiento subsuncion*/
 	if(starEnd){
 		/* Execute the levels of competence */
-		ExecuteBehaviors();
+		ExecuteBehaviors();BATTERY: 
 		/* Execute Coordinator */
 		Coordinator();
 		/*Construir el mapa*/
 		BuildMap(totalLight,totalBlueLight,totalRedLight);
 
-		double* battery = m_seBattery->GetSensorReading(m_pcEpuck);
 		/* Set Speed to wheels */
 		m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);
-		
-		printf("BATTERY: ");
-		for ( int i = 0 ; i < m_seBattery->GetNumberOfInputs() ; i ++ )
-		{
-			printf("%1.3f ", battery[i]);
-		}
-		printf("\n");
 
 		if((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0 && (2.5*blueMem<totalLight))||(totalLight==0.0)){
 			/*Apagamos la luz al irnos a dormir*/
@@ -358,23 +366,8 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	    	}
 		}
 	}
-  printf("\n");
-	if (m_nWriteToFile )
-	{
-	/* INIT: WRITE TO FILES */
-	/* Write robot position and orientation */
-		FILE* filePosition = fopen("outputFiles/robotPosition", "a");
-		fprintf(filePosition,"%2.4f %2.4f %2.4f %2.4f\n", m_fTime, m_pcEpuck->GetPosition().x, m_pcEpuck->GetPosition().y, m_pcEpuck->GetRotation());
-		fclose(filePosition);
-
-		/* Write robot wheels speed */
-		FILE* fileWheels = fopen("outputFiles/robotWheels", "a");
-		fprintf(fileWheels,"%2.4f %2.4f %2.4f \n", m_fTime, m_fLeftSpeed, m_fRightSpeed);
-		fclose(fileWheels);
-		/* END WRITE TO FILES */
-	}
-
 }
+
 
 /******************************************************************************/
 /******************************************************************************/

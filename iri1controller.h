@@ -69,7 +69,7 @@ private:
     int m_nRobotActualGridX;
     int m_nRobotActualGridY;
 		/* Functions */
-
+        void HybridManager ( double* encoder, double* compass, double* light, double* blueLight, double* redLight , double* prox , double* battery);
 		void ExecuteBehaviors ( void );
 		void Coordinator ( void );
         void BuildMap ( double totalLight, double totalBlueLight, double totalRedLight );
