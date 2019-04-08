@@ -49,13 +49,12 @@ double    robotStartGridX   = 0;
 double    robotStartGridY   = 0;
 double    robotEndGridX     = 0;
 double    robotEndGridY     = 0;
-bool starEnd = true;
-int camino = 0;
 
-double    houseGridX,houseGridY = 0.0;
-double    walleGridX,walleGridY = 0.0;
-double    discoGridX,discoGridY = 0.0;
+double    houseGridX,houseGridY = 1000.0;
+double    walleGridX,walleGridY = 1000.0;
+double    discoGridX,discoGridY = 1000.0;
 double    maxBlueLight,maxRedLight = 0.0;
+int actualGridX, actualGridY;
 
 const   int n=mapGridX; // horizontal size of the map
 const   int m=mapGridY; // vertical size size of the map
@@ -195,6 +194,7 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 
 	/* Threshold to define the battery discharged */
 	battery_threshold = 0.2;
+	starEnd = true;
 
 	/*Initialize A-Star variables*/
 	for ( int y = 0 ; y < m ; y++ )
@@ -266,67 +266,46 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 	/* Move time to global variable, so it can be used by the bahaviors to write to files*/
 	m_fTime = f_time;
 
-	/* FASE 2: CONTROLADOR */
-  /* Inicio Incluir las ACCIONES/CONTROLADOR a implementar */
-  printf("PROX: ");
-  for ( int i = 0 ; i < m_seProx->GetNumberOfInputs() ; i ++ )
-  {
-    printf("%1.3f ", prox[i]);
-  }
-  printf("\n");
-  /* Fin: Incluir las ACCIONES/CONTROLADOR a implementar */
+	/*HYBRID BEHAVIORS MANAGING*/
 
-  if(camino==0 && m_nState >= m_nPathPlanningStops){
-    	if((compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01)==false){
-    		m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
-			/* Set Speed to wheels */
-			m_acWheels->SetSpeed(25,-25);
-    	}
-   		else{
-   			camino = 1;
-   			robotStartGridX = walleGridX;
-   			robotStartGridY = walleGridY;
-    		robotEndGridX = discoGridX;
-    		robotEndGridY = discoGridY;
-    		/*Initialize A-Star variables*/
-	    	m_nState=0;
-	     	m_nPathPlanningStops=0;
-	      	/* Restart Obstacle Map */
-  			m_vPosition.x = 0.0;
-  			m_vPosition.y = 0.0;
-  			m_fOrientation = 0.0;
-
-	      	PathPlanning();
-    	}
-   }
-   else if(camino==1 && m_nState >= m_nPathPlanningStops){
-    	camino = 0;
-		starEnd = true;
-	}
-  
-  /* Finete States Machine */
-  	if (starEnd==false){
+	/*Mientras este usando el algoritmmo estrella*/
+  	if (!starEnd){
   		/* DEBUG */
   		/* Remake Kinematic Equations */
   		CalcPositionAndOrientation(encoder);
   		printf("REAL: %2f,%2f,%2f  -- ODOM: %2f,%2f,%2f -- ENC: %2f,%2f \n", (m_pcEpuck->GetPosition()).x, (m_pcEpuck->GetPosition()).y, compass[0], m_vPosition.x,m_vPosition.y,m_fOrientation,encoder[0], encoder[1]);
-  		printf("State: %d\n", m_nState);
-  	}
-  	if (m_nState >= m_nPathPlanningStops){
-    	Stop();
+  		printf("State: %d , PathPlanningStops: %d \n", m_nState, m_nPathPlanningStops);
+  		if (m_nState >= m_nPathPlanningStops){
 
-    	for ( int y = 0 ; y < m ; y++ )
-  		{
-    		for ( int x = 0 ; x < n ; x++ )
-    		{
-   				if(map[x][y]>1){
-   					map[x][y]=0;
-   				}
-       		}
-   		}
-	}
-  	else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
-    	m_nState++;
+  			if(camino == 0){
+    			m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
+				/* Set Speed to wheels */
+				m_acWheels->SetSpeed(-25,25);
+				if(compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01){
+					robotStartGridX = walleGridX;
+        			robotStartGridY = walleGridY;
+        			robotEndGridX = discoGridX;
+        			robotEndGridY = discoGridY;
+        			/*Initialize A-Star variables*/
+        			m_nState=0;
+        			m_nPathPlanningStops=0;
+          			/* Restart Obstacle Map */
+        			m_vPosition.x = 0.0;
+        			m_vPosition.y = 0.0;
+        			m_fOrientation = 0.0;
+
+          			PathPlanning();
+          			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
+          			camino = 1;
+          		}
+          	}else if(camino == 1){
+          		camino = 0;
+          		starEnd = true;
+          	}
+		}
+  		else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
+    		m_nState++;
+		}
 	}
 
 	/*Cuando termine el camino del Algoritmo A-Star*/
@@ -647,7 +626,6 @@ void CIri1Controller::BuildMap (double totalLight, double totalBlueLight, double
 	actualPos.y = -actualPos.y + mapLengthY/2;
 
 	/*Calculamos casilla de la cuadrícula actual*/
-	int actualGridX, actualGridY;
 	actualGridX = (int) floor(actualPos.x/(mapLengthX/mapGridX));
 	actualGridY = (int) floor(actualPos.y/(mapLengthY/mapGridY));
 
@@ -1121,6 +1099,16 @@ void CIri1Controller::PathPlanning ( void )
   for (int i = 0 ; i < m_nPathPlanningStops ; i++)
     printf("MOV %d: %2f, %2f\n", i, m_vPositionsPlanning[i].x, m_vPositionsPlanning[i].y);
   /* END DEBUG */
+
+	for ( int y = 0 ; y < m ; y++ )
+  		{
+    		for ( int x = 0 ; x < n ; x++ )
+    		{
+   				if(map[x][y]>1){
+   					map[x][y]=0;
+   				}
+       		}
+   		}
 }
 
 /******************************************************************************/
