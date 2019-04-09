@@ -50,6 +50,7 @@ double    robotStartGridY   = 0;
 double    robotEndGridX     = 0;
 double    robotEndGridY     = 0;
 
+/*Variables de BuildMap*/
 double    houseGridX,houseGridY = 0.0;
 double    walleGridX,walleGridY = 0.0;
 double    discoGridX,discoGridY = 0.0;
@@ -134,7 +135,7 @@ bool operator < ( const node & a, const node & b )
 
 /******************************************************************************/
 /******************************************************************************/
-
+/*Subsumption definitions*/
 #define BEHAVIORS	5
 
 #define AVOID_PRIORITY 		0
@@ -194,6 +195,8 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
 
 	/* Threshold to define the battery discharged */
 	battery_threshold = 0.2;
+
+	/*Starts with subsumption*/
 	starEnd = true;
 
 	/*Initialize A-Star variables*/
@@ -205,6 +208,7 @@ CIri1Controller::CIri1Controller (const char* pch_name, CEpuck* pc_epuck, int n_
         }
     }
 
+/*Creates activation table*/
 	m_fActivationTable = new double* [BEHAVIORS];
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
 	{
@@ -272,6 +276,7 @@ void CIri1Controller::SimulationStep(unsigned n_step_number, double f_time, doub
 /******************************************************************************/
 /******************************************************************************/
 
+/*Controls the changes between main behaviors*/
 void CIri1Controller::HybridManager ( double* encoder, double* compass, double* light, double* blueLight, double* redLight , double* prox , double* battery){
 	double totalLight, totalBlueLight, totalRedLight = 0.0;
 	for(int i = 0; i<8; i++){
@@ -279,6 +284,7 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 		totalBlueLight += blueLight[i];
 		totalRedLight += redLight[i];
 	}
+	/*When the blue lights are off, ignore its value*/
 	if(totalBlueLight!=0.0)
 		blueMem = totalBlueLight;
 
@@ -291,12 +297,17 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
   		CalcPositionAndOrientation(encoder);
   		printf("REAL: %2f,%2f,%2f  -- ODOM: %2f,%2f,%2f -- ENC: %2f,%2f \n", (m_pcEpuck->GetPosition()).x, (m_pcEpuck->GetPosition()).y, compass[0], m_vPosition.x,m_vPosition.y,m_fOrientation,encoder[0], encoder[1]);
   		printf("State: %d , PathPlanningStops: %d \n", m_nState, m_nPathPlanningStops);
+
+  		/*Si ha acabado el camino*/
   		if (m_nState >= m_nPathPlanningStops){
 
+  			/*Si ha reccorido camino 0, iniciar camino 1*/
   			if(camino == 0){
     			m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
 				/* Set Speed to wheels */
 				m_acWheels->SetSpeed(-25,25);
+
+				/*Gira hasta pi radianes*/
 				if(compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01){
 					robotStartGridX = walleGridX;
         			robotStartGridY = walleGridY;
@@ -314,11 +325,13 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
           			m_pcEpuck->SetAllColoredLeds(LED_COLOR_BLACK);
           			camino = 1;
           		}
+          	/*Si ha finalizado el camino 1, volver a comportamiento por instintos*/
           	}else if(camino == 1){
           		camino = 0;
           		starEnd = true;
           	}
 		}
+		/*Cuando alcance nueva parada, añadir uno al estado actual*/
   		else if (GoGoal(m_vPositionsPlanning[m_nState].x, m_vPositionsPlanning[m_nState].y, prox)){
     		m_nState++;
 		}
@@ -336,6 +349,7 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 		/* Set Speed to wheels */
 		m_acWheels->SetSpeed(m_fLeftSpeed, m_fRightSpeed);
 
+		/*Cuando este justo debajo de la luz amarilla y en el comportamiento GoLoad, o no haya luz*/
 		if((totalLight<1 && m_fActivationTable[RELOAD_PRIORITY][2] == 1.0 && (2.5*blueMem<totalLight))||(totalLight==0.0)){
 			/*Apagamos la luz al irnos a dormir*/
 			m_seLight->SwitchNearestLight(0);
@@ -344,6 +358,8 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 			m_pcEpuck->SetAllColoredLeds(LED_COLOR_GREEN);
 			/* Set Speed to wheels */
 			m_acWheels->SetSpeed(25,-25);
+
+			/*Gira hasta que llega a pi radianes con mas del 90% de batería, y comienza el camino 0*/
 			if(battery[0]>0.9 &&(compass[0]>M_PI-0.01 && compass[0]<M_PI+0.01)){
 				robotStartGridX = houseGridX;
     			robotStartGridY = houseGridY;
@@ -379,10 +395,67 @@ void CIri1Controller::HybridManager ( double* encoder, double* compass, double* 
 	}
 }
 
+/******************************************************************************/
+/******************************************************************************/
+
+/*Genera el mapa de no obstáculos a través de su posición, mientras está en subsunción*/
+void CIri1Controller::BuildMap (double totalLight, double totalBlueLight, double totalRedLight)
+{
+	/* Leer Sensores de Suelo Memory */
+	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
+
+	/*Obtenemos posicion actual exacta del robot*/
+	dVector2 actualPos;
+	actualPos.x = (m_pcEpuck->GetPosition()).x;
+	actualPos.y = (m_pcEpuck->GetPosition()).y;
+
+	/*Sumamos 1.5 a los valores para situar el origen arriba a la izquierda*/
+	actualPos.x += mapLengthX/2;
+	actualPos.y = -actualPos.y + mapLengthY/2;
+
+	/*Calculamos casilla de la cuadrícula actual*/
+	actualGridX = (int) floor(actualPos.x/(mapLengthX/mapGridX));
+	actualGridY = (int) floor(actualPos.y/(mapLengthY/mapGridY));
+
+	/*Sustituimos dicha posicion por un no obstaculo en el mapa*/
+	map[actualGridX][actualGridY]=0;
+
+	/*Update Home, Walle and Disco Grid*/
+	if(groundMemory[0]==1 && totalRedLight>maxRedLight){
+		maxRedLight = totalRedLight;
+		walleGridX = actualGridX;
+		walleGridY = actualGridY;
+	}
+	if(totalBlueLight>maxBlueLight){
+		maxBlueLight = totalBlueLight;
+		discoGridX = actualGridX;
+		discoGridY = actualGridY;
+	}
+	if(totalLight==0.0){
+		houseGridX = actualGridX;
+		houseGridY = actualGridY;
+	}
+
+	printf("CalculatedGrids: House( %2.0f , %2.0f ); Walle( %2.0f , %2.0f ); Disco( %2.0f , %2.0f );  \n",houseGridX,houseGridY,walleGridX,walleGridY,discoGridX,discoGridY);
+	
+	/*Display Updated Map*/
+    for ( int y = 0 ; y < m ; y++ )
+    {
+      for ( int x = 0 ; x < n ; x++ )
+        if ( map[x][y] == 0 )
+          cout<<".";
+        else
+          cout<<"O"; //obstacle
+  		cout<<endl;
+    }
+
+}
+
 
 /******************************************************************************/
 /******************************************************************************/
 
+/*Se encarga de ejecutar todos los comportamientos mientras que starEnd=true*/
 void CIri1Controller::ExecuteBehaviors ( void )
 {
 	for ( int i = 0 ; i < BEHAVIORS ; i++ )
@@ -407,6 +480,7 @@ void CIri1Controller::ExecuteBehaviors ( void )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Comprueba que estados están activos, y orienta al robot en función el ángulo que estos le indiquen*/
 void CIri1Controller::Coordinator ( void )
 {
 	int nBehavior;
@@ -471,6 +545,7 @@ void CIri1Controller::Coordinator ( void )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Genera un ángulo de repelencia de óbstaculos, que toma importancia cuando está cerca de estos*/
 void CIri1Controller::ObstacleAvoidance ( unsigned int un_priority )
 {
 	/* Leer Sensores de Proximidad */
@@ -508,6 +583,7 @@ void CIri1Controller::ObstacleAvoidance ( unsigned int un_priority )
 	/* If above a threshold */
 	if ( fMaxProx > PROXIMITY_THRESHOLD )
 	{
+		/*Inhibe todos los demás estados*/
 		fAvoidToBattInhibitor = 0.0;
 		/* Set Leds to GREEN */
 		m_pcEpuck->SetAllColoredLeds(	LED_COLOR_GREEN);
@@ -531,6 +607,7 @@ void CIri1Controller::ObstacleAvoidance ( unsigned int un_priority )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Mueve el robot hacia delante, mientras no haya otra tarea que realizar(menor prioridad)*/
 void CIri1Controller::Navigate ( unsigned int un_priority )
 {
   /* Direction Angle 0.0 and always active. We set its vector intensity to 0.5 if used */
@@ -553,6 +630,7 @@ void CIri1Controller::Navigate ( unsigned int un_priority )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Se encarga de orientar al robot hacia las luces amarillas cuando tiene poca batería*/
 void CIri1Controller::GoLoad ( unsigned int un_priority )
 {
 	/* Leer Battery Sensores */
@@ -627,60 +705,8 @@ void CIri1Controller::GoLoad ( unsigned int un_priority )
 
 /******************************************************************************/
 /******************************************************************************/
-void CIri1Controller::BuildMap (double totalLight, double totalBlueLight, double totalRedLight)
-{
-	/* Leer Sensores de Suelo Memory */
-	double* groundMemory = m_seGroundMemory->GetSensorReading(m_pcEpuck);
 
-	/*Obtenemos posicion actual exacta del robot*/
-	dVector2 actualPos;
-	actualPos.x = (m_pcEpuck->GetPosition()).x;
-	actualPos.y = (m_pcEpuck->GetPosition()).y;
-
-	/*Sumamos 1.5 a los valores para situar el origen arriba a la izquierda*/
-	actualPos.x += mapLengthX/2;
-	actualPos.y = -actualPos.y + mapLengthY/2;
-
-	/*Calculamos casilla de la cuadrícula actual*/
-	actualGridX = (int) floor(actualPos.x/(mapLengthX/mapGridX));
-	actualGridY = (int) floor(actualPos.y/(mapLengthY/mapGridY));
-
-	/*Sustituimos dicha posicion por un no obstaculo en el mapa*/
-	map[actualGridX][actualGridY]=0;
-
-	/*Update Home, Walle and Disco Grid*/
-	if(groundMemory[0]==1 && totalRedLight>maxRedLight){
-		maxRedLight = totalRedLight;
-		walleGridX = actualGridX;
-		walleGridY = actualGridY;
-	}
-	if(totalBlueLight>maxBlueLight){
-		maxBlueLight = totalBlueLight;
-		discoGridX = actualGridX;
-		discoGridY = actualGridY;
-	}
-	if(totalLight==0.0){
-		houseGridX = actualGridX;
-		houseGridY = actualGridY;
-	}
-
-	printf("CalculatedGrids: House( %2.0f , %2.0f ); Walle( %2.0f , %2.0f ); Disco( %2.0f , %2.0f );  \n",houseGridX,houseGridY,walleGridX,walleGridY,discoGridX,discoGridY);
-	
-	/*Display Updated Map*/
-    for ( int y = 0 ; y < m ; y++ )
-    {
-      for ( int x = 0 ; x < n ; x++ )
-        if ( map[x][y] == 0 )
-          cout<<".";
-        else
-          cout<<"O"; //obstacle
-  		cout<<endl;
-    }
-
-}
-
-/******************************************************************************/
-/******************************************************************************/
+/*Se encarga de orientar al robot hacia las luces rojas cuando este no tenga un objeto*/
 void CIri1Controller::Go4Walle ( unsigned int un_priority )
 {
 	/* Leer Sensores de Suelo Memory */
@@ -739,6 +765,7 @@ void CIri1Controller::Go4Walle ( unsigned int un_priority )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Se encarga de orientar robot hacia luces azules cuando este tiene un objeto*/
 void CIri1Controller::Forage ( unsigned int un_priority )
 {
 	/* Leer Sensores de Suelo Memory */
@@ -801,6 +828,7 @@ void CIri1Controller::Forage ( unsigned int un_priority )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Calcula su posición y orientación, para saber si ha llegado adecuadamente a las paradas*/
 void CIri1Controller::CalcPositionAndOrientation (double *f_encoder)
 {
   /* Remake kinematic equations */
@@ -826,6 +854,7 @@ void CIri1Controller::CalcPositionAndOrientation (double *f_encoder)
 /******************************************************************************/
 /******************************************************************************/
 
+/*Se encarga de desplazar al robot adecuadamente, evitando posibles obstáculos, entre cada uno de los tramos del PathPlaning()*/
 int CIri1Controller::GoGoal (double f_x, double f_y, double *prox)
 {
   double fX = (f_x - m_vPosition.x);
@@ -949,6 +978,7 @@ void CIri1Controller::Stop( void )
 /******************************************************************************/
 /******************************************************************************/
 
+/*Genera una ruta completa, dividida en paradas, entre la casilla de salida y la de final, si es posible*/
 void CIri1Controller::PathPlanning ( void )
 {
   /* Obtain start and end desired position */
