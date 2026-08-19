@@ -29,6 +29,9 @@ pytest -q      # 8 tests: optimality, obstacle avoidance, unreachable goals, bia
 The JavaScript port (`webgame/js/astar.js`) has a matching 7-test suite and
 drives the interactive page.
 
+### 🖼️ Screenshots
+
+![A* path search](docs/webgame_astar.png)
 ## 🎮 Interactive web edition
 
 `webgame/` — an A* visualizer on the same 20×20 grid the robot planned on:
