@@ -20,7 +20,7 @@
         } catch (e) {}
       })();
     </script>
-    <link rel="stylesheet" href="style.css?v=1" />
+    <link rel="stylesheet" href="style.css?v=2" />
   </head>
   <body>
     <header class="topbar">
@@ -143,46 +143,82 @@
       <div class="modal-card">
         <button class="modal-close" data-close-guide title="Close">✕</button>
         <h2>📖 About this page</h2>
-        <h3>🎓 The Project</h3>
-        <p>
-          <b>IRIN O1 — Trabajo Obligatorio 1</b> (UPM, 2019): an e-puck robot in
-          the Webots simulator navigates a 20×20 grid arena using a
-          <b>subsumption architecture</b> (wandering, obstacle avoidance,
-          goal-seeking, recharging) with an <b>A* path planner</b> on top. The
-          controller (<code>iri1controller.cpp</code>) builds a map of explored
-          cells from its ground-memory sensor and plans routes with A*.
-        </p>
-        <h3>🧮 The algorithm</h3>
-        <p>
-          This page runs the controller's exact <code>pathFind()</code> port:
-          <b>8 directions</b> with a <b>straight-line bias</b> (straight moves
-          cost 0, diagonals cost 2), priority <code>level + estimate×10</code>,
-          and the route encoded as direction indices. <b>Amber</b> = open set,
-          <b>blue</b> = closed set, <b>green</b> = the final route.
-        </p>
-        <h3>🖱️ How to use</h3>
-        <p>
-          Left-click to place the <b>start</b>, shift-click to place the
-          <b>goal</b>, right-click/drag to <b>paint walls</b> (or load the O1
-          arena preset), then <b>▶ Run A*</b> and watch the search expand. The
-          speed slider animates the exploration step by step.
-        </p>
-        <h3>🖥️ Implementation</h3>
-        <p>
-          The C++ <code>pathFind()</code> was ported 1:1 to Python
-          (<code>astar.py</code>, 8 unit tests) and JavaScript for this page.
-          Source:
-          <a
-            href="https://github.com/alejp1998/irin_o1"
-            target="_blank"
-            rel="noopener"
-            >github.com/alejp1998/irin_o1</a
-          >.
-        </p>
+        <div class="guide-tabs">
+          <button class="guide-tab active" data-tab="theory">🧠 Theory</button>
+          <button class="guide-tab" data-tab="game">🎮 Game</button>
+        </div>
+
+        <section class="guide-panel" data-tab="theory">
+          <h3>🎓 The Project</h3>
+          <p>
+            <b>IRIN O1</b> (UPM, 2019) — a Webots e-puck controller with a
+            subsumption-style architecture (battery management, wall following,
+            light seeking) whose navigation layer plans paths with
+            <b>A\* search</b> on a 20×20 occupancy grid. The planner is
+            extracted here as <code>astar.py</code> / <code>astar.js</code>
+            (1:1 ports, tested).
+          </p>
+
+          <h3>🔍 A\* search</h3>
+          <p>A\* expands states in order of the evaluation function</p>
+          <p class="math">\[ f(n) = g(n) + h(n) \]</p>
+          <p>
+            where \(g(n)\) is the cost from the start to \(n\) and \(h(n)\) an
+            admissible heuristic. The controller moves in
+            <b>8 directions</b> with a straight-line bias: straight moves cost
+            \(0\) extra, diagonals cost \(2\), and the priority is \(f(n) = g(n)
+            + 10\,h(n)\) with the <b>Chebyshev heuristic</b>
+          </p>
+          <p class="math">
+            \[ h(x,y) = \max\bigl(|x - x_{\text{goal}}|,\; |y -
+            y_{\text{goal}}|\bigr) \]
+          </p>
+          <p>
+            A priority queue holds the <b>open set</b>; expanded cells move to
+            the <b>closed set</b>. Each cell stores the direction back to its
+            parent (encoded as \((i + 4) \bmod 8\)), so the route is
+            reconstructed by walking backward from the goal — exactly as in the
+            C++ controller.
+          </p>
+          <p>
+            The visualizer animates the search: <b>amber</b> = open set,
+            <b>blue</b> = closed set, <b>green</b> = the final route. Because
+            \(h\) is admissible (never overestimates), the first route found is
+            optimal.
+          </p>
+        </section>
+
+        <section class="guide-panel hidden" data-tab="game">
+          <h3>🗺️ How to use</h3>
+          <p>
+            Paint walls by <b>clicking or dragging</b> on the 20×20 grid,
+            right-click (or the eraser button) to clear cells.
+            <b>Set Start</b> / <b>Set Goal</b> pick the endpoints (drag them to
+            move). Press <b>Find path</b> to run the search — watch the open set
+            expand, the closed set fill, and the optimal route appear. The
+            <b>O1 arena</b> preset loads the layout from the lab's Webots world.
+          </p>
+          <h3>🖥️ Source</h3>
+          <p>
+            <a
+              href="https://github.com/alejp1998/irin_o1"
+              target="_blank"
+              rel="noopener"
+              >github.com/alejp1998/irin_o1</a
+            >
+            — C++ controller, Python port, tests.
+          </p>
+        </section>
       </div>
     </div>
 
-    <script src="js/astar.js?v=1"></script>
-    <script src="js/main.js?v=1"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"
+      id="MathJax-script"
+      async
+    ></script>
+    <script src="js/guide.js?v=2"></script>
+    <script src="js/astar.js?v=2"></script>
+    <script src="js/main.js?v=2"></script>
   </body>
 </html>
